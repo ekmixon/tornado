@@ -100,12 +100,11 @@ class TwistedResolver(Resolver):
                 resolved_family = socket.AF_INET6
             else:
                 resolved_family = socket.AF_UNSPEC
-        if family != socket.AF_UNSPEC and family != resolved_family:
+        if family not in [socket.AF_UNSPEC, resolved_family]:
             raise Exception(
                 "Requested socket family %d but got %d" % (family, resolved_family)
             )
-        result = [(typing.cast(int, resolved_family), (resolved, port))]
-        return result
+        return [(typing.cast(int, resolved_family), (resolved, port))]
 
 
 def install() -> None:

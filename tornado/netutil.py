@@ -139,17 +139,8 @@ def bind_sockets(
                     raise
         if reuse_port:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        if af == socket.AF_INET6:
-            # On linux, ipv6 sockets accept ipv4 too by default,
-            # but this makes it impossible to bind to both
-            # 0.0.0.0 in ipv4 and :: in ipv6.  On other systems,
-            # separate sockets *must* be used to listen for both ipv4
-            # and ipv6.  For consistency, always disable ipv4 on our
-            # ipv6 sockets and use a separate ipv4 socket when needed.
-            #
-            # Python 2.x on windows doesn't have IPPROTO_IPV6.
-            if hasattr(socket, "IPPROTO_IPV6"):
-                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        if af == socket.AF_INET6 and hasattr(socket, "IPPROTO_IPV6"):
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
 
         # automatic port allocation with port=None
         # should bind on the same port on IPv4 and IPv6
@@ -162,25 +153,24 @@ def bind_sockets(
             sock.bind(sockaddr)
         except OSError as e:
             if (
-                errno_from_exception(e) == errno.EADDRNOTAVAIL
-                and address == "localhost"
-                and sockaddr[0] == "::1"
+                errno_from_exception(e) != errno.EADDRNOTAVAIL
+                or address != "localhost"
+                or sockaddr[0] != "::1"
             ):
-                # On some systems (most notably docker with default
-                # configurations), ipv6 is partially disabled:
-                # socket.has_ipv6 is true, we can create AF_INET6
-                # sockets, and getaddrinfo("localhost", ...,
-                # AF_PASSIVE) resolves to ::1, but we get an error
-                # when binding.
-                #
-                # Swallow the error, but only for this specific case.
-                # If EADDRNOTAVAIL occurs in other situations, it
-                # might be a real problem like a typo in a
-                # configuration.
-                sock.close()
-                continue
-            else:
                 raise
+            # On some systems (most notably docker with default
+            # configurations), ipv6 is partially disabled:
+            # socket.has_ipv6 is true, we can create AF_INET6
+            # sockets, and getaddrinfo("localhost", ...,
+            # AF_PASSIVE) resolves to ::1, but we get an error
+            # when binding.
+            #
+            # Swallow the error, but only for this specific case.
+            # If EADDRNOTAVAIL occurs in other situations, it
+            # might be a real problem like a typo in a
+            # configuration.
+            sock.close()
+            continue
         bound_port = sock.getsockname()[1]
         sock.listen(backlog)
         sockets.append(sock)
@@ -392,10 +382,9 @@ def _resolve_addr(
     # matter (we discard the one we get back in the results),
     # so the addresses we return should still be usable with SOCK_DGRAM.
     addrinfo = socket.getaddrinfo(host, port, family, socket.SOCK_STREAM)
-    results = []
-    for fam, socktype, proto, canonname, address in addrinfo:
-        results.append((fam, address))
-    return results  # type: ignore
+    return [
+        (fam, address) for fam, socktype, proto, canonname, address in addrinfo
+    ]
 
 
 class DefaultExecutorResolver(Resolver):

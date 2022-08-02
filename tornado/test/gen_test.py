@@ -31,7 +31,7 @@ class GenBasicTest(AsyncTestCase):
     @gen.coroutine
     def delay(self, iterations, arg):
         """Returns arg after a number of IOLoop iterations."""
-        for i in range(iterations):
+        for _ in range(iterations):
             yield gen.moment
         raise gen.Return(arg)
 
@@ -146,7 +146,7 @@ class GenBasicTest(AsyncTestCase):
         # sure a large list stays reasonable.  On my laptop a list of
         # 2000 used to take 1.8s, now it takes 0.12.
         start = time.time()
-        yield [gen.moment for i in range(2000)]
+        yield [gen.moment for _ in range(2000)]
         end = time.time()
         self.assertLess(end - start, 1.0)
 
@@ -853,7 +853,7 @@ class WaitIteratorTest(AsyncTestCase):
                     "WaitIterator dict status incorrect",
                 )
             else:
-                self.fail("got bad WaitIterator index {}".format(dg.current_index))
+                self.fail(f"got bad WaitIterator index {dg.current_index}")
 
             i += 1
 

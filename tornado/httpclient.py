@@ -131,10 +131,9 @@ class HTTPClient(object):
         If an error occurs during the fetch, we raise an `HTTPError` unless
         the ``raise_error`` keyword argument is set to False.
         """
-        response = self._io_loop.run_sync(
+        return self._io_loop.run_sync(
             functools.partial(self._async_client.fetch, request, **kwargs)
         )
-        return response
 
 
 class AsyncHTTPClient(Configurable):
@@ -190,17 +189,14 @@ class AsyncHTTPClient(Configurable):
 
     @classmethod
     def _async_clients(cls) -> Dict[IOLoop, "AsyncHTTPClient"]:
-        attr_name = "_async_client_dict_" + cls.__name__
+        attr_name = f"_async_client_dict_{cls.__name__}"
         if not hasattr(cls, attr_name):
             setattr(cls, attr_name, weakref.WeakKeyDictionary())
         return getattr(cls, attr_name)
 
     def __new__(cls, force_instance: bool = False, **kwargs: Any) -> "AsyncHTTPClient":
         io_loop = IOLoop.current()
-        if force_instance:
-            instance_cache = None
-        else:
-            instance_cache = cls._async_clients()
+        instance_cache = None if force_instance else cls._async_clients()
         if instance_cache is not None and io_loop in instance_cache:
             return instance_cache[io_loop]
         instance = super(AsyncHTTPClient, cls).__new__(cls, **kwargs)  # type: ignore
@@ -217,7 +213,7 @@ class AsyncHTTPClient(Configurable):
         self.io_loop = IOLoop.current()
         self.defaults = dict(HTTPRequest._DEFAULTS)
         if defaults is not None:
-            self.defaults.update(defaults)
+            self.defaults |= defaults
         self._closed = False
 
     def close(self) -> None:
@@ -297,10 +293,11 @@ class AsyncHTTPClient(Configurable):
         future = Future()  # type: Future[HTTPResponse]
 
         def handle_response(response: "HTTPResponse") -> None:
-            if response.error:
-                if raise_error or not response._error_is_response_code:
-                    future_set_exception_unless_cancelled(future, response.error)
-                    return
+            if response.error and (
+                raise_error or not response._error_is_response_code
+            ):
+                future_set_exception_unless_cancelled(future, response.error)
+                return
             future_set_result_unless_cancelled(future, response)
 
         self.fetch_impl(cast(HTTPRequest, request_proxy), handle_response)
@@ -557,10 +554,7 @@ class HTTPRequest(object):
 
     @headers.setter
     def headers(self, value: Union[Dict[str, str], httputil.HTTPHeaders]) -> None:
-        if value is None:
-            self._headers = httputil.HTTPHeaders()
-        else:
-            self._headers = value  # type: ignore
+        self._headers = httputil.HTTPHeaders() if value is None else value
 
     @property
     def body(self) -> bytes:
@@ -645,16 +639,10 @@ class HTTPResponse(object):
             self.request = request
         self.code = code
         self.reason = reason or httputil.responses.get(code, "Unknown")
-        if headers is not None:
-            self.headers = headers
-        else:
-            self.headers = httputil.HTTPHeaders()
+        self.headers = headers if headers is not None else httputil.HTTPHeaders()
         self.buffer = buffer
         self._body = None  # type: Optional[bytes]
-        if effective_url is None:
-            self.effective_url = request.url
-        else:
-            self.effective_url = effective_url
+        self.effective_url = request.url if effective_url is None else effective_url
         self._error_is_response_code = False
         if error is None:
             if self.code < 200 or self.code >= 300:
@@ -684,7 +672,7 @@ class HTTPResponse(object):
 
     def __repr__(self) -> str:
         args = ",".join("%s=%r" % i for i in sorted(self.__dict__.items()))
-        return "%s(%s)" % (self.__class__.__name__, args)
+        return f"{self.__class__.__name__}({args})"
 
 
 class HTTPClientError(Exception):

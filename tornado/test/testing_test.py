@@ -76,10 +76,8 @@ class LeakTest(AsyncTestCase):
         event = Event()
 
         async def callback():
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await event.wait()
-            except asyncio.CancelledError:
-                pass
 
         self.io_loop.add_callback(callback)
         self.io_loop.add_callback(self.stop)

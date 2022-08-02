@@ -41,12 +41,11 @@ def multipart_producer(boundary, filenames, write):
         yield write(buf)
         with open(filename, "rb") as f:
             while True:
-                # 16k at a time.
-                chunk = f.read(16 * 1024)
-                if not chunk:
-                    break
-                yield write(chunk)
+                if chunk := f.read(16 * 1024):
+                    yield write(chunk)
 
+                else:
+                    break
         yield write(b"\r\n")
 
     yield write(b"--%s--\r\n" % (boundary_bytes,))
@@ -58,7 +57,7 @@ def multipart_producer(boundary, filenames, write):
 def post(filenames):
     client = httpclient.AsyncHTTPClient()
     boundary = uuid4().hex
-    headers = {"Content-Type": "multipart/form-data; boundary=%s" % boundary}
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
     producer = partial(multipart_producer, boundary, filenames)
     response = yield client.fetch(
         "http://localhost:8888/post",
@@ -74,13 +73,11 @@ def post(filenames):
 def raw_producer(filename, write):
     with open(filename, "rb") as f:
         while True:
-            # 16K at a time.
-            chunk = f.read(16 * 1024)
-            if not chunk:
+            if chunk := f.read(16 * 1024):
+                yield write(chunk)
+            else:
                 # Complete.
                 break
-
-            yield write(chunk)
 
 
 @gen.coroutine
@@ -92,11 +89,12 @@ def put(filenames):
         producer = partial(raw_producer, filename)
         url_path = quote(os.path.basename(filename))
         response = yield client.fetch(
-            "http://localhost:8888/%s" % url_path,
+            f"http://localhost:8888/{url_path}",
             method="PUT",
             headers=headers,
             body_producer=producer,
         )
+
         print(response)
 
 

@@ -50,8 +50,8 @@ def find_circular_references(garbage=None):
 class CollectHandler(web.RequestHandler):
     @gen.coroutine
     def get(self):
-        self.write("Collected: {}\n".format(gc.collect()))
-        self.write("Garbage: {}\n".format(len(gc.garbage)))
+        self.write(f"Collected: {gc.collect()}\n")
+        self.write(f"Garbage: {len(gc.garbage)}\n")
         for circular in find_circular_references():
             print('\n==========\n Circular \n==========')
             for item in circular:

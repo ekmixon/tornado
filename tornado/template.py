@@ -239,14 +239,14 @@ def filter_whitespace(mode: str, text: str) -> str:
     """
     if mode == "all":
         return text
+    elif mode == "oneline":
+        return re.sub(r"(\s+)", " ", text)
     elif mode == "single":
         text = re.sub(r"([\t ]+)", " ", text)
         text = re.sub(r"(\s*\n\s*)", "\n", text)
         return text
-    elif mode == "oneline":
-        return re.sub(r"(\s+)", " ", text)
     else:
-        raise Exception("invalid whitespace mode %s" % mode)
+        raise Exception(f"invalid whitespace mode {mode}")
 
 
 class Template(object):
@@ -296,12 +296,10 @@ class Template(object):
         if whitespace is None:
             if loader and loader.whitespace:
                 whitespace = loader.whitespace
+            elif name.endswith(".html") or name.endswith(".js"):
+                whitespace = "single"
             else:
-                # Whitespace defaults by filename.
-                if name.endswith(".html") or name.endswith(".js"):
-                    whitespace = "single"
-                else:
-                    whitespace = "all"
+                whitespace = "all"
         # Validate the whitespace setting.
         assert whitespace is not None
         filter_whitespace(whitespace, "")
@@ -325,10 +323,11 @@ class Template(object):
             # from being applied to the generated code.
             self.compiled = compile(
                 escape.to_unicode(self.code),
-                "%s.generated.py" % self.name.replace(".", "_"),
+                f'{self.name.replace(".", "_")}.generated.py',
                 "exec",
                 dont_inherit=True,
             )
+
         except Exception:
             formatted_code = _format_code(self.code).rstrip()
             app_log.error("%s code:\n%s", self.name, formatted_code)
@@ -351,7 +350,7 @@ class Template(object):
             "__name__": self.name.replace(".", "_"),
             "__loader__": ObjectDict(get_source=lambda name: self.code),
         }
-        namespace.update(self.namespace)
+        namespace |= self.namespace
         namespace.update(kwargs)
         exec_in(self.compiled, namespace)
         execute = typing.cast(Callable[[], bytes], namespace["_tt_execute"])
@@ -474,8 +473,7 @@ class Loader(BaseLoader):
     def _create_template(self, name: str) -> Template:
         path = os.path.join(self.root, name)
         with open(path, "rb") as f:
-            template = Template(f.read(), name=name, loader=self)
-            return template
+            return Template(f.read(), name=name, loader=self)
 
 
 class DictLoader(BaseLoader):
@@ -603,14 +601,14 @@ class _ApplyBlock(_Node):
     def generate(self, writer: "_CodeWriter") -> None:
         method_name = "_tt_apply%d" % writer.apply_counter
         writer.apply_counter += 1
-        writer.write_line("def %s():" % method_name, self.line)
+        writer.write_line(f"def {method_name}():", self.line)
         with writer.indent():
             writer.write_line("_tt_buffer = []", self.line)
             writer.write_line("_tt_append = _tt_buffer.append", self.line)
             self.body.generate(writer)
             writer.write_line("return _tt_utf8('').join(_tt_buffer)", self.line)
         writer.write_line(
-            "_tt_append(_tt_utf8(%s(%s())))" % (self.method, method_name), self.line
+            f"_tt_append(_tt_utf8({self.method}({method_name}())))", self.line
         )
 
 
@@ -624,7 +622,7 @@ class _ControlBlock(_Node):
         return (self.body,)
 
     def generate(self, writer: "_CodeWriter") -> None:
-        writer.write_line("%s:" % self.statement, self.line)
+        writer.write_line(f"{self.statement}:", self.line)
         with writer.indent():
             self.body.generate(writer)
             # Just in case the body was empty
@@ -639,7 +637,7 @@ class _IntermediateControlBlock(_Node):
     def generate(self, writer: "_CodeWriter") -> None:
         # In case the previous block was empty
         writer.write_line("pass", self.line)
-        writer.write_line("%s:" % self.statement, self.line, writer.indent_size() - 1)
+        writer.write_line(f"{self.statement}:", self.line, writer.indent_size() - 1)
 
 
 class _Statement(_Node):
@@ -658,7 +656,7 @@ class _Expression(_Node):
         self.raw = raw
 
     def generate(self, writer: "_CodeWriter") -> None:
-        writer.write_line("_tt_tmp = %s" % self.expression, self.line)
+        writer.write_line(f"_tt_tmp = {self.expression}", self.line)
         writer.write_line(
             "if isinstance(_tt_tmp, _tt_string_types):" " _tt_tmp = _tt_utf8(_tt_tmp)",
             self.line,
@@ -668,15 +666,16 @@ class _Expression(_Node):
             # In python3 functions like xhtml_escape return unicode,
             # so we have to convert to utf8 again.
             writer.write_line(
-                "_tt_tmp = _tt_utf8(%s(_tt_tmp))" % writer.current_template.autoescape,
+                f"_tt_tmp = _tt_utf8({writer.current_template.autoescape}(_tt_tmp))",
                 self.line,
             )
+
         writer.write_line("_tt_append(_tt_tmp)", self.line)
 
 
 class _Module(_Expression):
     def __init__(self, expression: str, line: int) -> None:
-        super().__init__("_tt_modules." + expression, line, raw=True)
+        super().__init__(f"_tt_modules.{expression}", line, raw=True)
 
 
 class _Text(_Node):
@@ -774,7 +773,7 @@ class _CodeWriter(object):
             ancestors = [
                 "%s:%d" % (tmpl.name, lineno) for (tmpl, lineno) in self.include_stack
             ]
-            line_comment += " (via %s)" % ", ".join(reversed(ancestors))
+            line_comment += f' (via {", ".join(reversed(ancestors))})'
         print("    " * indent + line + line_comment, file=self.file)
 
 
@@ -936,25 +935,24 @@ def _parse(
 
         # Intermediate ("else", "elif", etc) blocks
         intermediate_blocks = {
-            "else": set(["if", "for", "while", "try"]),
-            "elif": set(["if"]),
-            "except": set(["try"]),
-            "finally": set(["try"]),
+            "else": {"if", "for", "while", "try"},
+            "elif": {"if"},
+            "except": {"try"},
+            "finally": {"try"},
         }
+
         allowed_parents = intermediate_blocks.get(operator)
         if allowed_parents is not None:
             if not in_block:
-                reader.raise_parse_error(
-                    "%s outside %s block" % (operator, allowed_parents)
-                )
+                reader.raise_parse_error(f"{operator} outside {allowed_parents} block")
             if in_block not in allowed_parents:
                 reader.raise_parse_error(
-                    "%s block cannot be attached to %s block" % (operator, in_block)
+                    f"{operator} block cannot be attached to {in_block} block"
                 )
+
             body.chunks.append(_IntermediateControlBlock(contents, line))
             continue
 
-        # End tag
         elif operator == "end":
             if not in_block:
                 reader.raise_parse_error("Extra {% end %} block")
@@ -1037,9 +1035,7 @@ def _parse(
 
         elif operator in ("break", "continue"):
             if not in_loop:
-                reader.raise_parse_error(
-                    "%s outside %s block" % (operator, set(["for", "while"]))
-                )
+                reader.raise_parse_error("%s outside %s block" % (operator, {"for", "while"}))
             body.chunks.append(_Statement(contents, line))
             continue
 

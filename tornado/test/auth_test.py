@@ -95,7 +95,7 @@ class OAuth1ClientLoginCoroutineHandler(OAuth1ClientLoginHandler):
                 yield self.get_authenticated_user()
             except Exception as e:
                 self.set_status(503)
-                self.write("got exception: %s" % e)
+                self.write(f"got exception: {e}")
         else:
             yield self.authorize_redirect()
 
@@ -226,9 +226,10 @@ class TwitterClientShowUserHandler(TwitterClientHandler):
         # cheating with a hard-coded access token.
         try:
             response = yield self.twitter_request(
-                "/users/show/%s" % self.get_argument("name"),
+                f'/users/show/{self.get_argument("name")}',
                 access_token=dict(key="hjkl", secret="vbnm"),
             )
+
         except HTTPClientError:
             # TODO(bdarnell): Should we catch HTTP errors and
             # transform some of them (like 403s) into AuthError?

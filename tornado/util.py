@@ -140,7 +140,7 @@ def import_object(name: str) -> Any:
         ...
     ImportError: No module named missing_module
     """
-    if name.count(".") == 0:
+    if "." not in name:
         return __import__(name)
 
     parts = name.split(".")
@@ -148,7 +148,7 @@ def import_object(name: str) -> Any:
     try:
         return getattr(obj, parts[-1])
     except AttributeError:
-        raise ImportError("No module named %s" % parts[-1])
+        raise ImportError(f"No module named {parts[-1]}")
 
 
 def exec_in(
@@ -262,7 +262,7 @@ class Configurable(object):
         if cls is base:
             impl = cls.configured_class()
             if base.__impl_kwargs:
-                init_kwargs.update(base.__impl_kwargs)
+                init_kwargs |= base.__impl_kwargs
         else:
             impl = cls
         init_kwargs.update(kwargs)
@@ -319,7 +319,7 @@ class Configurable(object):
         if isinstance(impl, str):
             impl = typing.cast(Type[Configurable], import_object(impl))
         if impl is not None and not issubclass(impl, cls):
-            raise ValueError("Invalid subclass of %s" % cls)
+            raise ValueError(f"Invalid subclass of {cls}")
         base.__impl_class = impl
         base.__impl_kwargs = kwargs
 

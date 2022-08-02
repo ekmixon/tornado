@@ -161,10 +161,7 @@ def parse_qs_bytes(
     result = urllib.parse.parse_qs(
         qs, keep_blank_values, strict_parsing, encoding="latin1", errors="strict"
     )
-    encoded = {}
-    for k, v in result.items():
-        encoded[k] = [i.encode("latin1") for i in v]
-    return encoded
+    return {k: [i.encode("latin1") for i in v] for k, v in result.items()}
 
 
 _UTF8_TYPES = (bytes, type(None))
@@ -245,11 +242,9 @@ def recursive_unicode(obj: Any) -> Any:
     Supports lists, tuples, and dictionaries.
     """
     if isinstance(obj, dict):
-        return dict(
-            (recursive_unicode(k), recursive_unicode(v)) for (k, v) in obj.items()
-        )
+        return {recursive_unicode(k): recursive_unicode(v) for (k, v) in obj.items()}
     elif isinstance(obj, list):
-        return list(recursive_unicode(i) for i in obj)
+        return [recursive_unicode(i) for i in obj]
     elif isinstance(obj, tuple):
         return tuple(recursive_unicode(i) for i in obj)
     elif isinstance(obj, bytes):
@@ -309,7 +304,7 @@ def linkify(
       ``javascript``.
     """
     if extra_params and not callable(extra_params):
-        extra_params = " " + extra_params.strip()
+        extra_params = f" {extra_params.strip()}"
 
     def make_link(m: typing.Match) -> str:
         url = m.group(1)
@@ -322,10 +317,10 @@ def linkify(
 
         href = m.group(1)
         if not proto:
-            href = "http://" + href  # no proto specified, use http
+            href = f"http://{href}"
 
         if callable(extra_params):
-            params = " " + extra_params(href).strip()
+            params = f" {extra_params(href).strip()}"
         else:
             params = extra_params
 
@@ -333,11 +328,7 @@ def linkify(
         max_len = 30
         if shorten and len(url) > max_len:
             before_clip = url
-            if proto:
-                proto_len = len(proto) + 1 + len(m.group(3) or "")  # +1 for :
-            else:
-                proto_len = 0
-
+            proto_len = len(proto) + 1 + len(m.group(3) or "") if proto else 0
             parts = url[proto_len:].split("/")
             if len(parts) > 1:
                 # Grab the whole host part plus the first bit of the path
@@ -385,18 +376,18 @@ def _convert_entity(m: typing.Match) -> str:
             else:
                 return chr(int(m.group(2)))
         except ValueError:
-            return "&#%s;" % m.group(2)
+            return f"&#{m.group(2)};"
     try:
         return _HTML_UNICODE_MAP[m.group(2)]
     except KeyError:
-        return "&%s;" % m.group(2)
+        return f"&{m.group(2)};"
 
 
 def _build_unicode_map() -> Dict[str, str]:
-    unicode_map = {}
-    for name, value in html.entities.name2codepoint.items():
-        unicode_map[name] = chr(value)
-    return unicode_map
+    return {
+        name: chr(value)
+        for name, value in html.entities.name2codepoint.items()
+    }
 
 
 _HTML_UNICODE_MAP = _build_unicode_map()

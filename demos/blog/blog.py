@@ -125,10 +125,7 @@ class BaseHandler(tornado.web.RequestHandler):
         return results[0]
 
     async def prepare(self):
-        # get_current_user cannot be a coroutine, so set
-        # self.current_user in prepare instead.
-        user_id = self.get_secure_cookie("blogdemo_user")
-        if user_id:
+        if user_id := self.get_secure_cookie("blogdemo_user"):
             self.current_user = await self.queryone(
                 "SELECT * FROM authors WHERE id = %s", int(user_id)
             )
@@ -174,10 +171,10 @@ class FeedHandler(BaseHandler):
 class ComposeHandler(BaseHandler):
     @tornado.web.authenticated
     async def get(self):
-        id = self.get_argument("id", None)
-        entry = None
-        if id:
+        if id := self.get_argument("id", None):
             entry = await self.queryone("SELECT * FROM entries WHERE id = %s", int(id))
+        else:
+            entry = None
         self.render("compose.html", entry=entry)
 
     @tornado.web.authenticated
@@ -223,7 +220,7 @@ class ComposeHandler(BaseHandler):
                 text,
                 html,
             )
-        self.redirect("/entry/" + slug)
+        self.redirect(f"/entry/{slug}")
 
 
 class AuthCreateHandler(BaseHandler):

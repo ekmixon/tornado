@@ -122,7 +122,7 @@ class HTTPHeaders(collections.abc.MutableMapping):
         self._dict = {}  # type: typing.Dict[str, str]
         self._as_list = {}  # type: typing.Dict[str, typing.List[str]]
         self._last_key = None  # type: Optional[str]
-        if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], HTTPHeaders):
+        if len(args) == 1 and not kwargs and isinstance(args[0], HTTPHeaders):
             # Copy constructor
             for k, v in args[0].get_all():
                 self.add(k, v)
@@ -137,9 +137,7 @@ class HTTPHeaders(collections.abc.MutableMapping):
         norm_name = _normalize_header(name)
         self._last_key = norm_name
         if norm_name in self:
-            self._dict[norm_name] = (
-                native_str(self[norm_name]) + "," + native_str(value)
-            )
+            self._dict[norm_name] = f"{native_str(self[norm_name])},{native_str(value)}"
             self._as_list[norm_name].append(value)
         else:
             self[norm_name] = value
@@ -171,7 +169,7 @@ class HTTPHeaders(collections.abc.MutableMapping):
             # continuation of a multi-line header
             if self._last_key is None:
                 raise HTTPInputError("first header line cannot start with whitespace")
-            new_part = " " + line.lstrip()
+            new_part = f" {line.lstrip()}"
             self._as_list[self._last_key][-1] += new_part
             self._dict[self._last_key] += new_part
         else:
@@ -236,9 +234,7 @@ class HTTPHeaders(collections.abc.MutableMapping):
     __copy__ = copy
 
     def __str__(self) -> str:
-        lines = []
-        for name, value in self.get_all():
-            lines.append("%s: %s\n" % (name, value))
+        lines = ["%s: %s\n" % (name, value) for name, value in self.get_all()]
         return "".join(lines)
 
     __unicode__ = __str__
@@ -408,7 +404,7 @@ class HTTPServerRequest(object):
 
     def full_url(self) -> str:
         """Reconstructs the full URL for this request."""
-        return self.protocol + "://" + self.host + self.uri  # type: ignore[operator]
+        return f"{self.protocol}://{self.host}{self.uri}"
 
     def request_time(self) -> float:
         """Returns the amount of time it took for this request to execute."""
@@ -463,7 +459,7 @@ class HTTPServerRequest(object):
     def __repr__(self) -> str:
         attrs = ("protocol", "host", "method", "uri", "version", "remote_ip")
         args = ", ".join(["%s=%r" % (n, getattr(self, n)) for n in attrs])
-        return "%s(%s)" % (self.__class__.__name__, args)
+        return f"{self.__class__.__name__}({args})"
 
 
 class HTTPInputError(Exception):
@@ -631,7 +627,7 @@ def url_concat(
     if isinstance(args, dict):
         parsed_query = parse_qsl(parsed_url.query, keep_blank_values=True)
         parsed_query.extend(args.items())
-    elif isinstance(args, list) or isinstance(args, tuple):
+    elif isinstance(args, (list, tuple)):
         parsed_query = parse_qsl(parsed_url.query, keep_blank_values=True)
         parsed_query.extend(args)
     else:
@@ -640,7 +636,7 @@ def url_concat(
         )
         raise TypeError(err)
     final_query = urlencode(parsed_query)
-    url = urlunparse(
+    return urlunparse(
         (
             parsed_url[0],
             parsed_url[1],
@@ -650,7 +646,6 @@ def url_concat(
             parsed_url[5],
         )
     )
-    return url
 
 
 class HTTPFile(ObjectDict):
@@ -732,14 +727,12 @@ def _get_content_range(start: Optional[int], end: Optional[int], total: int) -> 
     """
     start = start or 0
     end = (end or total) - 1
-    return "bytes %s-%s/%s" % (start, end, total)
+    return f"bytes {start}-{end}/{total}"
 
 
 def _int_or_none(val: str) -> Optional[int]:
     val = val.strip()
-    if val == "":
-        return None
-    return int(val)
+    return int(val) if val else None
 
 
 def parse_body_arguments(
@@ -918,10 +911,10 @@ def parse_response_start_line(line: str) -> ResponseStartLine:
     ResponseStartLine(version='HTTP/1.1', code=200, reason='OK')
     """
     line = native_str(line)
-    match = _http_response_line_re.match(line)
-    if not match:
+    if match := _http_response_line_re.match(line):
+        return ResponseStartLine(match.group(1), int(match.group(2)), match.group(3))
+    else:
         raise HTTPInputError("Error parsing response start line")
-    return ResponseStartLine(match.group(1), int(match.group(2)), match.group(3))
 
 
 # _parseparam and _parse_header are copied and modified from python2.7's cgi.py
@@ -933,7 +926,7 @@ def parse_response_start_line(line: str) -> ResponseStartLine:
 
 
 def _parseparam(s: str) -> Generator[str, None, None]:
-    while s[:1] == ";":
+    while s.startswith(";"):
         s = s[1:]
         end = s.find(";")
         while end > 0 and (s.count('"', 0, end) - s.count('\\"', 0, end)) % 2:
@@ -959,7 +952,7 @@ def _parse_header(line: str) -> Tuple[str, Dict[str, str]]:
     >>> d['foo']
     'b\\a"r'
     """
-    parts = _parseparam(";" + line)
+    parts = _parseparam(f";{line}")
     key = next(parts)
     # decode_params treats first argument special, but we already stripped key
     params = [("Dummy", "value")]
@@ -996,7 +989,7 @@ def _encode_header(key: str, pdict: Dict[str, str]) -> str:
             out.append(k)
         else:
             # TODO: quote if necessary.
-            out.append("%s=%s" % (k, v))
+            out.append(f"{k}={v}")
     return "; ".join(out)
 
 
@@ -1033,8 +1026,7 @@ def split_host_and_port(netloc: str) -> Tuple[str, Optional[int]]:
 
     .. versionadded:: 4.1
     """
-    match = _netloc_re.match(netloc)
-    if match:
+    if match := _netloc_re.match(netloc):
         host = match.group(1)
         port = int(match.group(2))  # type: Optional[int]
     else:
@@ -1098,12 +1090,10 @@ def _unquote_cookie(s: str) -> str:
         if q_match:
             k = q_match.start(0)
         if q_match and (not o_match or k < j):  # QuotePatt matched
-            res.append(s[i:k])
-            res.append(s[k + 1])
+            res.extend((s[i:k], s[k + 1]))
             i = k + 2
         else:  # OctalPatt matched
-            res.append(s[i:j])
-            res.append(chr(int(s[j + 1 : j + 4], 8)))
+            res.extend((s[i:j], chr(int(s[j + 1 : j + 4], 8))))
             i = j + 4
     return _nulljoin(res)
 
@@ -1120,13 +1110,8 @@ def parse_cookie(cookie: str) -> Dict[str, str]:
     .. versionadded:: 4.4.2
     """
     cookiedict = {}
-    for chunk in cookie.split(str(";")):
-        if str("=") in chunk:
-            key, val = chunk.split(str("="), 1)
-        else:
-            # Assume an empty name per
-            # https://bugzilla.mozilla.org/show_bug.cgi?id=169091
-            key, val = str(""), chunk
+    for chunk in cookie.split(";"):
+        key, val = chunk.split("=", 1) if "=" in chunk else ("", chunk)
         key, val = key.strip(), val.strip()
         if key or val:
             # unquote using Python's algorithm.

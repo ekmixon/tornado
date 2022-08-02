@@ -100,13 +100,15 @@ MacOS users should run:
             e = sys.exc_info()[1]
             sys.stdout.write("%s\n" % str(e))
             warnings.warn(
-                self.warning_message
-                % (
-                    "The %s extension " "module" % (name,),
-                    "The output above "
-                    "this warning shows how "
-                    "the compilation "
-                    "failed.",
+                (
+                    self.warning_message
+                    % (
+                        f"The {name} extension module",
+                        "The output above "
+                        "this warning shows how "
+                        "the compilation "
+                        "failed.",
+                    )
                 )
             )
 

@@ -357,12 +357,11 @@ class Subprocess(object):
     def _set_returncode(self, status: int) -> None:
         if sys.platform == "win32":
             self.returncode = -1
+        elif os.WIFSIGNALED(status):
+            self.returncode = -os.WTERMSIG(status)
         else:
-            if os.WIFSIGNALED(status):
-                self.returncode = -os.WTERMSIG(status)
-            else:
-                assert os.WIFEXITED(status)
-                self.returncode = os.WEXITSTATUS(status)
+            assert os.WIFEXITED(status)
+            self.returncode = os.WEXITSTATUS(status)
         # We've taken over wait() duty from the subprocess.Popen
         # object. If we don't inform it of the process's return code,
         # it will log a warning at destruction in python 3.6+.

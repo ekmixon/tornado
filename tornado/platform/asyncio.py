@@ -162,7 +162,7 @@ class BaseAsyncIOLoop(IOLoop):
     ) -> None:
         fd, fileobj = self.split_fd(fd)
         if fd in self.handlers:
-            raise ValueError("fd %s added twice" % fd)
+            raise ValueError(f"fd {fd} added twice")
         self.handlers[fd] = (fileobj, handler)
         if events & IOLoop.READ:
             self.selector_loop.add_reader(fd, self._handle_events, fd, IOLoop.READ)
@@ -177,18 +177,16 @@ class BaseAsyncIOLoop(IOLoop):
             if fd not in self.readers:
                 self.selector_loop.add_reader(fd, self._handle_events, fd, IOLoop.READ)
                 self.readers.add(fd)
-        else:
-            if fd in self.readers:
-                self.selector_loop.remove_reader(fd)
-                self.readers.remove(fd)
+        elif fd in self.readers:
+            self.selector_loop.remove_reader(fd)
+            self.readers.remove(fd)
         if events & IOLoop.WRITE:
             if fd not in self.writers:
                 self.selector_loop.add_writer(fd, self._handle_events, fd, IOLoop.WRITE)
                 self.writers.add(fd)
-        else:
-            if fd in self.writers:
-                self.selector_loop.remove_writer(fd)
-                self.writers.remove(fd)
+        elif fd in self.writers:
+            self.selector_loop.remove_writer(fd)
+            self.writers.remove(fd)
 
     def remove_handler(self, fd: Union[int, _Selectable]) -> None:
         fd, fileobj = self.split_fd(fd)
@@ -592,26 +590,14 @@ class AddThreadSelectorEventLoop(asyncio.AbstractEventLoop):
                 rs, ws, xs = select.select(to_read, to_write, to_write)
                 ws = ws + xs
             except OSError as e:
-                # After remove_reader or remove_writer is called, the file
-                # descriptor may subsequently be closed on the event loop
-                # thread. It's possible that this select thread hasn't
-                # gotten into the select system call by the time that
-                # happens in which case (at least on macOS), select may
-                # raise a "bad file descriptor" error. If we get that
-                # error, check and see if we're also being woken up by
-                # polling the waker alone. If we are, just return to the
-                # event loop and we'll get the updated set of file
-                # descriptors on the next iteration. Otherwise, raise the
-                # original error.
-                if e.errno == getattr(errno, "WSAENOTSOCK", errno.EBADF):
-                    rs, _, _ = select.select([self._waker_r.fileno()], [], [], 0)
-                    if rs:
-                        ws = []
-                    else:
-                        raise
-                else:
+                if e.errno != getattr(errno, "WSAENOTSOCK", errno.EBADF):
                     raise
 
+                rs, _, _ = select.select([self._waker_r.fileno()], [], [], 0)
+                if rs:
+                    ws = []
+                else:
+                    raise
             try:
                 self._real_loop.call_soon_threadsafe(self._handle_select, rs, ws)
             except RuntimeError:

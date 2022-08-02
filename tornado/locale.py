@@ -157,10 +157,7 @@ def load_translations(directory: str, encoding: Optional[str] = None) -> None:
                     continue
                 row = [escape.to_unicode(c).strip() for c in row]
                 english, translation = row[:2]
-                if len(row) > 2:
-                    plural = row[2] or "unknown"
-                else:
-                    plural = "unknown"
+                plural = row[2] or "unknown" if len(row) > 2 else "unknown"
                 if plural not in ("plural", "singular", "unknown"):
                     gen_log.error(
                         "Unrecognized plural indicator %r in %s line %d",
@@ -200,9 +197,7 @@ def load_gettext_translations(directory: str, domain: str) -> None:
     global _use_gettext
     _translations = {}
 
-    for filename in glob.glob(
-        os.path.join(directory, "*", "LC_MESSAGES", domain + ".mo")
-    ):
+    for filename in glob.glob(os.path.join(directory, "*", "LC_MESSAGES", f"{domain}.mo")):
         lang = os.path.basename(os.path.dirname(os.path.dirname(filename)))
         try:
             _translations[lang] = gettext.translation(
@@ -241,7 +236,7 @@ class Locale(object):
             if len(parts) > 2:
                 continue
             elif len(parts) == 2:
-                code = parts[0].lower() + "_" + parts[1].upper()
+                code = f"{parts[0].lower()}_{parts[1].upper()}"
             if code in _supported_locales:
                 return cls.get(code)
             if parts[0].lower() in _supported_locales:
@@ -269,12 +264,7 @@ class Locale(object):
     def __init__(self, code: str) -> None:
         self.code = code
         self.name = LOCALE_NAMES.get(code, {}).get("name", u"Unknown")
-        self.rtl = False
-        for prefix in ["fa", "ar", "he"]:
-            if self.code.startswith(prefix):
-                self.rtl = True
-                break
-
+        self.rtl = any(self.code.startswith(prefix) for prefix in ["fa", "ar", "he"])
         # Initialize strings for date formatting
         _ = self.translate
         self._months = [
@@ -563,19 +553,20 @@ class GettextLocale(Locale):
         if plural_message is not None:
             assert count is not None
             msgs_with_ctxt = (
-                "%s%s%s" % (context, CONTEXT_SEPARATOR, message),
-                "%s%s%s" % (context, CONTEXT_SEPARATOR, plural_message),
+                f"{context}{CONTEXT_SEPARATOR}{message}",
+                f"{context}{CONTEXT_SEPARATOR}{plural_message}",
                 count,
             )
+
             result = self.ngettext(*msgs_with_ctxt)
             if CONTEXT_SEPARATOR in result:
                 # Translation not found
                 result = self.ngettext(message, plural_message, count)
-            return result
         else:
-            msg_with_ctxt = "%s%s%s" % (context, CONTEXT_SEPARATOR, message)
+            msg_with_ctxt = f"{context}{CONTEXT_SEPARATOR}{message}"
             result = self.gettext(msg_with_ctxt)
             if CONTEXT_SEPARATOR in result:
                 # Translation not found
                 result = message
-            return result
+
+        return result

@@ -28,7 +28,7 @@ _TEST_HEADERS = (
 
 
 def headers_split_re(headers: str) -> None:
-    for line in _CRLF_RE.split(headers):
+    for _ in _CRLF_RE.split(headers):
         pass
 
 
@@ -99,9 +99,9 @@ def main():
     except ValueError:
         known_benchmarks = [benchmark.value for benchmark in Benchmark]
         print(
-            "Unknown benchmark: '{}', supported values are: {}"
-            .format(options.benchmark, ", ".join(known_benchmarks))
+            f"""Unknown benchmark: '{options.benchmark}', supported values are: {", ".join(known_benchmarks)}"""
         )
+
         return
 
     for _ in range(options.num_runs):

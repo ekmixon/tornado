@@ -59,6 +59,9 @@ def all():
 
 
 def test_runner_factory(stderr):
+
+
+
     class TornadoTextTestRunner(unittest.TextTestRunner):
         def __init__(self, *args, **kwargs):
             kwargs["stream"] = stderr
@@ -67,15 +70,16 @@ def test_runner_factory(stderr):
         def run(self, test):
             result = super().run(test)
             if result.skipped:
-                skip_reasons = set(reason for (test, reason) in result.skipped)
-                self.stream.write(  # type: ignore
+                skip_reasons = {reason for (test, reason) in result.skipped}
+                self.stream.write(
                     textwrap.fill(
-                        "Some tests were skipped because: %s"
-                        % ", ".join(sorted(skip_reasons))
+                        f'Some tests were skipped because: {", ".join(sorted(skip_reasons))}'
                     )
                 )
+
                 self.stream.write("\n")  # type: ignore
             return result
+
 
     return TornadoTextTestRunner
 

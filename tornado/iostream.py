@@ -355,7 +355,7 @@ class BaseIOStream(object):
             self._try_inline_read()
         except UnsatisfiableReadError as e:
             # Handle this the same way as in _handle_events.
-            gen_log.info("Unsatisfiable read, closing connection: %s" % e)
+            gen_log.info(f"Unsatisfiable read, closing connection: {e}")
             self.close(exc_info=e)
             return future
         except:
@@ -392,7 +392,7 @@ class BaseIOStream(object):
             self._try_inline_read()
         except UnsatisfiableReadError as e:
             # Handle this the same way as in _handle_events.
-            gen_log.info("Unsatisfiable read, closing connection: %s" % e)
+            gen_log.info(f"Unsatisfiable read, closing connection: {e}")
             self.close(exc_info=e)
             return future
         except:
@@ -727,7 +727,7 @@ class BaseIOStream(object):
                 self._state = state
                 self.io_loop.update_handler(self.fileno(), self._state)
         except UnsatisfiableReadError as e:
-            gen_log.info("Unsatisfiable read, closing connection: %s" % e)
+            gen_log.info(f"Unsatisfiable read, closing connection: {e}")
             self.close(exc_info=e)
         except Exception as e:
             gen_log.error("Uncaught exception, closing connection.", exc_info=True)
@@ -748,22 +748,13 @@ class BaseIOStream(object):
         else:
             target_bytes = 0
         next_find_pos = 0
-        while not self.closed():
-            # Read from the socket until we get EWOULDBLOCK or equivalent.
-            # SSL sockets do some internal buffering, and if the data is
-            # sitting in the SSL object's buffer select() and friends
-            # can't see it; the only way to find out if it's there is to
-            # try to read it.
-            if self._read_to_buffer() == 0:
-                break
-
-            # If we've read all the bytes we can use, break out of
-            # this loop.
-
-            # If we've reached target_bytes, we know we're done.
-            if target_bytes is not None and self._read_buffer_size >= target_bytes:
-                break
-
+        while (
+            not self.closed()
+            and self._read_to_buffer() != 0
+            and not (
+                target_bytes is not None and self._read_buffer_size >= target_bytes
+            )
+        ):
             # Otherwise, we need to call the more expensive find_read_pos.
             # It's inefficient to do this on every read, so instead
             # do it on the first read and whenever the read buffer
@@ -783,7 +774,7 @@ class BaseIOStream(object):
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            gen_log.warning("error on read: %s" % e)
+            gen_log.warning(f"error on read: {e}")
             self.close(exc_info=e)
             return
         if pos is not None:
@@ -917,8 +908,7 @@ class BaseIOStream(object):
             self._read_buffer_size >= self._read_bytes
             or (self._read_partial and self._read_buffer_size > 0)
         ):
-            num_bytes = min(self._read_bytes, self._read_buffer_size)
-            return num_bytes
+            return min(self._read_bytes, self._read_buffer_size)
         elif self._read_delimiter is not None:
             # Multi-byte delimiters (e.g. '\r\n') may straddle two
             # chunks in the read buffer, so we can't easily find them
@@ -1025,13 +1015,12 @@ class BaseIOStream(object):
         # connection is first established because we are going to read or write
         # immediately anyway.  Instead, we insert checks at various times to
         # see if the connection is idle and add the read listener then.
-        if self._state is None or self._state == ioloop.IOLoop.ERROR:
-            if (
-                not self.closed()
-                and self._read_buffer_size == 0
-                and self._close_callback is not None
-            ):
-                self._add_io_state(ioloop.IOLoop.READ)
+        if (self._state is None or self._state == ioloop.IOLoop.ERROR) and (
+            not self.closed()
+            and self._read_buffer_size == 0
+            and self._close_callback is not None
+        ):
+            self._add_io_state(ioloop.IOLoop.READ)
 
     def _add_io_state(self, state: int) -> None:
         """Adds `state` (IOLoop.{READ,WRITE} flags) to our event handler.
@@ -1271,11 +1260,7 @@ class IOStream(BaseIOStream):
         ):
             raise ValueError("IOStream is not idle; cannot convert to SSL")
         if ssl_options is None:
-            if server_side:
-                ssl_options = _server_ssl_defaults
-            else:
-                ssl_options = _client_ssl_defaults
-
+            ssl_options = _server_ssl_defaults if server_side else _client_ssl_defaults
         socket = self.socket
         self.io_loop.remove_handler(socket)
         self.socket = None  # type: ignore
@@ -1470,7 +1455,7 @@ class SSLIOStream(IOStream):
         try:
             ssl.match_hostname(peercert, self._server_hostname)
         except ssl.CertificateError as e:
-            gen_log.warning("Invalid SSL certificate: %s" % e)
+            gen_log.warning(f"Invalid SSL certificate: {e}")
             return False
         else:
             return True

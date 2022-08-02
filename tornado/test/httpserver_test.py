@@ -381,7 +381,7 @@ class TypeCheckHandler(RequestHandler):
     def check_type(self, name, obj, expected_type):
         actual_type = type(obj)
         if expected_type != actual_type:
-            self.errors[name] = "expected %s, got %s" % (expected_type, actual_type)
+            self.errors[name] = f"expected {expected_type}, got {actual_type}"
 
 
 class PostEchoHandler(RequestHandler):
@@ -454,11 +454,12 @@ class HTTPServerTest(AsyncHTTPTestCase):
                     if quote:
                         bin_text = urllib.parse.quote(bin_text).encode("ascii")
                     response = self.fetch(
-                        "/post_" + enc,
+                        f"/post_{enc}",
                         method="POST",
                         headers=headers,
                         body=(b"data=" + bin_text),
                     )
+
                     self.assertEqual(json_decode(response.body), {"echo": uni_text})
 
 
@@ -1074,9 +1075,10 @@ class StreamingChunkSizeTest(AsyncHTTPTestCase):
         self.assertEqual(len(self.BODY), sum(chunks))
         for chunk_size in chunks:
             self.assertLessEqual(
-                chunk_size, self.CHUNK_SIZE, "oversized chunk: " + str(chunks)
+                chunk_size, self.CHUNK_SIZE, f"oversized chunk: {str(chunks)}"
             )
-            self.assertGreater(chunk_size, 0, "empty chunk: " + str(chunks))
+
+            self.assertGreater(chunk_size, 0, f"empty chunk: {str(chunks)}")
         return chunks
 
     def compress(self, body):
@@ -1186,7 +1188,7 @@ class IdleTimeoutTest(AsyncHTTPTestCase):
         stream.set_close_callback(event.set)
 
         # Use the connection twice to make sure keep-alives are working
-        for i in range(2):
+        for _ in range(2):
             stream.write(b"GET / HTTP/1.1\r\n\r\n")
             yield stream.read_until(b"\r\n\r\n")
             data = yield stream.read_bytes(11)

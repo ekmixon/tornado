@@ -302,7 +302,7 @@ class TCPClient(object):
         # after one connection has completed.
         source_port_bind = source_port if isinstance(source_port, int) else 0
         source_ip_bind = source_ip
-        if source_port_bind and not source_ip:
+        if source_port_bind and not source_ip_bind:
             # User required a specific port, but did not specify
             # a certain source IP, will bind to the default loopback.
             source_ip_bind = "::1" if af == socket.AF_INET6 else "127.0.0.1"

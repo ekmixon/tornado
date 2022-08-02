@@ -57,9 +57,9 @@ def main():
     os.chdir(TMPDIR)
     for exe, url in PYTHON_VERSIONS:
         if os.path.exists(exe):
-            print("%s already exists, skipping" % exe)
+            print(f"{exe} already exists, skipping")
             continue
-        print("Installing %s" % url)
+        print(f"Installing {url}")
         filename = download_to_cache(url)
         # http://blog.jaraco.com/2012/01/how-i-install-python-on-windows.html
         subprocess.check_call(['msiexec', '/i', filename,

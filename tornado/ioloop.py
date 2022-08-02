@@ -554,7 +554,7 @@ class IOLoop(Configurable):
             self.remove_timeout(timeout_handle)
         assert future_cell[0] is not None
         if future_cell[0].cancelled() or not future_cell[0].done():
-            raise TimeoutError("Operation timed out after %s seconds" % timeout)
+            raise TimeoutError(f"Operation timed out after {timeout} seconds")
         return future_cell[0].result()
 
     def time(self) -> float:
@@ -810,9 +810,7 @@ class IOLoop(Configurable):
 
         # .. versionadded:: 4.0
         # """
-        if isinstance(fd, int):
-            return fd, fd
-        return fd.fileno(), fd
+        return (fd, fd) if isinstance(fd, int) else (fd.fileno(), fd)
 
     def close_fd(self, fd: Union[int, _Selectable]) -> None:
         # """Utility method to close an ``fd``.
@@ -908,9 +906,9 @@ class PeriodicCallback(object):
         self.callback = callback
         if isinstance(callback_time, datetime.timedelta):
             self.callback_time = callback_time / datetime.timedelta(milliseconds=1)
+        elif callback_time <= 0:
+            raise ValueError("Periodic callback must have a positive callback_time")
         else:
-            if callback_time <= 0:
-                raise ValueError("Periodic callback must have a positive callback_time")
             self.callback_time = callback_time
         self.jitter = jitter
         self._running = False

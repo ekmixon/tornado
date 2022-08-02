@@ -339,7 +339,7 @@ class RuleRouter(Router):
         """
         for rule in rules:
             if isinstance(rule, (tuple, list)):
-                assert len(rule) in (2, 3, 4)
+                assert len(rule) in {2, 3, 4}
                 if isinstance(rule[0], basestring_type):
                     rule = Rule(PathMatches(rule[0]), *rule[1:])
                 else:
@@ -471,7 +471,7 @@ class Rule(object):
 
         self.matcher = matcher  # type: Matcher
         self.target = target
-        self.target_kwargs = target_kwargs if target_kwargs else {}
+        self.target_kwargs = target_kwargs or {}
         self.name = name
 
     def reverse(self, *args: Any) -> Optional[str]:
@@ -526,10 +526,7 @@ class HostMatches(Matcher):
             self.host_pattern = host_pattern
 
     def match(self, request: httputil.HTTPServerRequest) -> Optional[Dict[str, Any]]:
-        if self.host_pattern.match(request.host_name):
-            return {}
-
-        return None
+        return {} if self.host_pattern.match(request.host_name) else None
 
 
 class DefaultHostMatches(Matcher):
@@ -543,9 +540,10 @@ class DefaultHostMatches(Matcher):
 
     def match(self, request: httputil.HTTPServerRequest) -> Optional[Dict[str, Any]]:
         # Look for default host if not behind load balancer (for debugging)
-        if "X-Real-Ip" not in request.headers:
-            if self.host_pattern.match(self.application.default_host):
-                return {}
+        if "X-Real-Ip" not in request.headers and self.host_pattern.match(
+            self.application.default_host
+        ):
+            return {}
         return None
 
 
@@ -582,9 +580,10 @@ class PathMatches(Matcher):
         # unnamed groups, we want to use either groups
         # or groupdict but not both.
         if self.regex.groupindex:
-            path_kwargs = dict(
-                (str(k), _unquote_or_none(v)) for (k, v) in match.groupdict().items()
-            )
+            path_kwargs = {
+                str(k): _unquote_or_none(v) for (k, v) in match.groupdict().items()
+            }
+
         else:
             path_args = [_unquote_or_none(s) for s in match.groups()]
 
@@ -592,7 +591,7 @@ class PathMatches(Matcher):
 
     def reverse(self, *args: Any) -> Optional[str]:
         if self._path is None:
-            raise ValueError("Cannot reverse url regex " + self.regex.pattern)
+            raise ValueError(f"Cannot reverse url regex {self.regex.pattern}")
         assert len(args) == self._group_count, (
             "required number of arguments " "not found"
         )
@@ -633,7 +632,7 @@ class PathMatches(Matcher):
                         # If we can't unescape part of it, we can't
                         # reverse this url.
                         return (None, None)
-                    pieces.append("%s" + unescaped_fragment)
+                    pieces.append(f"%s{unescaped_fragment}")
             else:
                 try:
                     unescaped_fragment = re_unescape(fragment)
@@ -705,13 +704,11 @@ def _unquote_or_none(s: None) -> None:
     pass
 
 
-def _unquote_or_none(s: Optional[str]) -> Optional[bytes]:  # noqa: F811
+def _unquote_or_none(s: Optional[str]) -> Optional[bytes]:    # noqa: F811
     """None-safe wrapper around url_unescape to handle unmatched optional
     groups correctly.
 
     Note that args are passed as bytes so the handler can decide what
     encoding to use.
     """
-    if s is None:
-        return s
-    return url_unescape(s, encoding=None, plus=False)
+    return s if s is None else url_unescape(s, encoding=None, plus=False)

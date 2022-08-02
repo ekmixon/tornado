@@ -43,6 +43,7 @@ incorrectly.
 
 """
 
+
 import os
 import sys
 
@@ -65,15 +66,8 @@ import sys
 # see the correct path.  We attempt to address the latter problem when
 # tornado.autoreload is run as __main__.
 
-if __name__ == "__main__":
-    # This sys.path manipulation must come before our imports (as much
-    # as possible - if we introduced a tornado.sys or tornado.os
-    # module we'd be in trouble), or else our imports would become
-    # relative again despite the future import.
-    #
-    # There is a separate __main__ block at the end of the file to call main().
-    if sys.path[0] == os.path.dirname(__file__):
-        del sys.path[0]
+if __name__ == "__main__" and sys.path[0] == os.path.dirname(__file__):
+    del sys.path[0]
 
 import functools
 import logging
@@ -229,7 +223,7 @@ def _reload() -> None:
     if spec:
         argv = ["-m", spec.name] + argv[1:]
     else:
-        path_prefix = "." + os.pathsep
+        path_prefix = f".{os.pathsep}"
         if sys.path[0] == "" and not os.environ.get("PYTHONPATH", "").startswith(
             path_prefix
         ):
@@ -336,12 +330,8 @@ def main() -> None:
         # from the exception and watch every file.
         for (filename, lineno, name, line) in traceback.extract_tb(sys.exc_info()[2]):
             watch(filename)
-        if isinstance(e, SyntaxError):
-            # SyntaxErrors are special:  their innermost stack frame is fake
-            # so extract_tb won't see it and we have to get the filename
-            # from the exception object.
-            if e.filename is not None:
-                watch(e.filename)
+        if isinstance(e, SyntaxError) and e.filename is not None:
+            watch(e.filename)
     else:
         logging.basicConfig()
         gen_log.info("Script exited normally")

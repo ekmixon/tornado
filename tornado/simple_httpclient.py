@@ -171,12 +171,11 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
         assert request.request_timeout is not None
         timeout_handle = None
         if len(self.active) >= self.max_clients:
-            timeout = (
+            if timeout := (
                 min(request.connect_timeout, request.request_timeout)
                 or request.connect_timeout
                 or request.request_timeout
-            )  # min but skip zero
-            if timeout:
+            ):
                 timeout_handle = self.io_loop.add_timeout(
                     self.io_loop.time() + timeout,
                     functools.partial(self._on_timeout, key, "in request queue"),

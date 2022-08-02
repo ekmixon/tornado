@@ -54,7 +54,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         self._multi = pycurl.CurlMulti()  # type: Any
         self._multi.setopt(pycurl.M_TIMERFUNCTION, self._set_timeout)
         self._multi.setopt(pycurl.M_SOCKETFUNCTION, self._handle_socket)
-        self._curls = [self._curl_create() for i in range(max_clients)]
+        self._curls = [self._curl_create() for _ in range(max_clients)]
         self._free_list = self._curls[:]
         self._requests = (
             collections.deque()
@@ -403,9 +403,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             elif request.proxy_auth_mode == "digest":
                 curl.setopt(pycurl.PROXYAUTH, pycurl.HTTPAUTH_DIGEST)
             else:
-                raise ValueError(
-                    "Unsupported proxy_auth_mode %s" % request.proxy_auth_mode
-                )
+                raise ValueError(f"Unsupported proxy_auth_mode {request.proxy_auth_mode}")
         else:
             try:
                 curl.unsetopt(pycurl.PROXY)
@@ -420,15 +418,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             curl.setopt(pycurl.SSL_VERIFYHOST, 0)
         if request.ca_certs is not None:
             curl.setopt(pycurl.CAINFO, request.ca_certs)
-        else:
-            # There is no way to restore pycurl.CAINFO to its default value
-            # (Using unsetopt makes it reject all certificates).
-            # I don't see any way to read the default value from python so it
-            # can be restored later.  We'll have to just leave CAINFO untouched
-            # if no ca_certs file was specified, and require that if any
-            # request uses a custom ca_certs file, they all must.
-            pass
-
         if request.allow_ipv6 is False:
             # Curl behaves reasonably when DNS resolution gives an ipv6 address
             # that we can't reach, so allow ipv6 unless the user asks to disable.
@@ -444,7 +433,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             "PUT": pycurl.UPLOAD,
             "HEAD": pycurl.NOBODY,
         }
-        custom_methods = set(["DELETE", "OPTIONS", "PATCH"])
+        custom_methods = {"DELETE", "OPTIONS", "PATCH"}
         for o in curl_options.values():
             curl.setopt(o, False)
         if request.method in curl_options:
@@ -453,22 +442,19 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         elif request.allow_nonstandard_methods or request.method in custom_methods:
             curl.setopt(pycurl.CUSTOMREQUEST, request.method)
         else:
-            raise KeyError("unknown method " + request.method)
+            raise KeyError(f"unknown method {request.method}")
 
         body_expected = request.method in ("POST", "PATCH", "PUT")
         body_present = request.body is not None
-        if not request.allow_nonstandard_methods:
-            # Some HTTP methods nearly always have bodies while others
-            # almost never do. Fail in this case unless the user has
-            # opted out of sanity checks with allow_nonstandard_methods.
-            if (body_expected and not body_present) or (
-                body_present and not body_expected
-            ):
-                raise ValueError(
-                    "Body must %sbe None for method %s (unless "
-                    "allow_nonstandard_methods is true)"
-                    % ("not " if body_expected else "", request.method)
-                )
+        if not request.allow_nonstandard_methods and (
+            (body_expected and not body_present)
+            or (body_present and not body_expected)
+        ):
+            raise ValueError(
+                "Body must %sbe None for method %s (unless "
+                "allow_nonstandard_methods is true)"
+                % ("not " if body_expected else "", request.method)
+            )
 
         if body_expected or body_present:
             if request.method == "GET":
@@ -499,7 +485,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             elif request.auth_mode == "digest":
                 curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_DIGEST)
             else:
-                raise ValueError("Unsupported auth_mode %s" % request.auth_mode)
+                raise ValueError(f"Unsupported auth_mode {request.auth_mode}")
 
             userpwd = httputil.encode_username_password(
                 request.auth_username, request.auth_password
@@ -553,7 +539,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             headers.clear()
             try:
                 (__, __, reason) = httputil.parse_response_start_line(header_line)
-                header_line = "X-Http-Reason: %s" % reason
+                header_line = f"X-Http-Reason: {reason}"
             except httputil.HTTPInputError:
                 return
         if not header_line:
@@ -565,7 +551,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         if debug_type == 0:
             debug_msg = native_str(debug_msg)
             curl_log.debug("%s", debug_msg.strip())
-        elif debug_type in (1, 2):
+        elif debug_type in {1, 2}:
             debug_msg = native_str(debug_msg)
             for line in debug_msg.splitlines():
                 curl_log.debug("%s %s", debug_types[debug_type], line)

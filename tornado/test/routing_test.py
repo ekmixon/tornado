@@ -99,12 +99,16 @@ class HTTPMethodRouterTestCase(AsyncHTTPTestCase):
 
 
 def _get_named_handler(handler_name):
+
+
+
     class Handler(RequestHandler):
         def get(self, *args, **kwargs):
             if self.application.settings.get("app_name") is not None:
                 self.write(self.application.settings["app_name"] + ": ")
 
-            self.finish(handler_name + ": " + self.reverse_url(handler_name))
+            self.finish(f"{handler_name}: {self.reverse_url(handler_name)}")
+
 
     return Handler
 
@@ -127,7 +131,7 @@ class CustomRouter(ReversibleRouter):
             return app.get_handler_delegate(request, handler)
 
     def reverse_url(self, name, *args):
-        handler_path = "/" + name
+        handler_path = f"/{name}"
         return handler_path if handler_path in self.routes else None
 
 

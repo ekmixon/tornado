@@ -37,14 +37,13 @@ class HelloWorldHandler(RequestHandler):
     def get(self):
         name = self.get_argument("name", "world")
         self.set_header("Content-Type", "text/plain")
-        self.finish("Hello %s!" % name)
+        self.finish(f"Hello {name}!")
 
 
 class PostHandler(RequestHandler):
     def post(self):
         self.finish(
-            "Post arg1: %s, arg2: %s"
-            % (self.get_argument("arg1"), self.get_argument("arg2"))
+            f'Post arg1: {self.get_argument("arg1")}, arg2: {self.get_argument("arg2")}'
         )
 
 
@@ -146,7 +145,7 @@ class InvalidGzipHandler(RequestHandler):
         # Triggering the potential bug seems to depend on input length.
         # This length is taken from the bad-response example reported in
         # https://github.com/tornadoweb/tornado/pull/2875 (uncompressed).
-        text = "".join("Hello World {}\n".format(i) for i in range(9000))[:149051]
+        text = "".join(f"Hello World {i}\n" for i in range(9000))[:149051]
         body = gzip.compress(text.encode(), compresslevel=6) + b"\00"
         self.write(body)
 
@@ -364,9 +363,9 @@ Transfer-Encoding: chunked
             self.assertEqual(200, resp.code)
             self.assertEqual(b"", resp.body)
 
+        url = "/redirect?url=/all_methods&status=307"
         # Newer redirects always preserve the original method.
-        for status in [307, 308]:
-            url = "/redirect?url=/all_methods&status=307"
+        for _ in [307, 308]:
             for method in ["GET", "OPTIONS", "POST", "PUT", "DELETE"]:
                 resp = self.fetch(url, method=method, allow_nonstandard_methods=True)
                 self.assertEqual(method, to_unicode(resp.body))
@@ -698,7 +697,7 @@ X-XSS-Protection: 1;
         self.assertLess(abs(response.start_time - start_time), 1.0)
 
         for k, v in response.time_info.items():
-            self.assertTrue(0 <= v < 1.0, "time_info[%s] out of bounds: %s" % (k, v))
+            self.assertTrue(0 <= v < 1.0, f"time_info[{k}] out of bounds: {v}")
 
     def test_zero_timeout(self):
         response = self.fetch("/hello", connect_timeout=0)
@@ -719,7 +718,7 @@ X-XSS-Protection: 1;
             # let the IOLoop run until the exception gets logged (or
             # not, in which case we exit the loop and ExpectLog will
             # raise).
-            for i in range(100):
+            for _ in range(100):
                 yield gen.sleep(0.01)
                 if el.logged_stack:
                     break
@@ -727,9 +726,7 @@ X-XSS-Protection: 1;
 
 class RequestProxyTest(unittest.TestCase):
     def test_request_set(self):
-        proxy = _RequestProxy(
-            HTTPRequest("http://example.com/", user_agent="foo"), dict()
-        )
+        proxy = _RequestProxy(HTTPRequest("http://example.com/", user_agent="foo"), {})
         self.assertEqual(proxy.user_agent, "foo")
 
     def test_default_set(self):
@@ -745,11 +742,11 @@ class RequestProxyTest(unittest.TestCase):
         self.assertEqual(proxy.proxy_host, "foo")
 
     def test_neither_set(self):
-        proxy = _RequestProxy(HTTPRequest("http://example.com/"), dict())
+        proxy = _RequestProxy(HTTPRequest("http://example.com/"), {})
         self.assertIs(proxy.auth_username, None)
 
     def test_bad_attribute(self):
-        proxy = _RequestProxy(HTTPRequest("http://example.com/"), dict())
+        proxy = _RequestProxy(HTTPRequest("http://example.com/"), {})
         with self.assertRaises(AttributeError):
             proxy.foo
 

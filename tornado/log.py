@@ -152,10 +152,7 @@ class LogFormatter(logging.Formatter):
                         curses.tparm(fg_color, code), "ascii"
                     )
                 normal = curses.tigetstr("sgr0")
-                if normal is not None:
-                    self._normal = unicode_type(normal, "ascii")
-                else:
-                    self._normal = ""
+                self._normal = unicode_type(normal, "ascii") if normal is not None else ""
             else:
                 # If curses is not present (currently we'll only get here for
                 # colorama on windows), assume hard-coded ANSI color codes.
@@ -199,9 +196,8 @@ class LogFormatter(logging.Formatter):
 
         formatted = self._fmt % record.__dict__
 
-        if record.exc_info:
-            if not record.exc_text:
-                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self.formatException(record.exc_info)
         if record.exc_text:
             # exc_text contains multiple lines.  We need to _safe_unicode
             # each line separately so that non-utf8 bytes don't cause

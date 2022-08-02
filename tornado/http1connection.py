@@ -245,12 +245,12 @@ class HTTP1Connection(httputil.HTTPConnection):
                         raise httputil.HTTPInputError(
                             "Response code %d cannot have body" % code
                         )
-                    # TODO: client delegates will get headers_received twice
-                    # in the case of a 100-continue.  Document or change?
-                    await self._read_message(delegate)
-            else:
-                if headers.get("Expect") == "100-continue" and not self._write_finished:
-                    self.stream.write(b"HTTP/1.1 100 (Continue)\r\n\r\n")
+                    else:
+                        # TODO: client delegates will get headers_received twice
+                        # in the case of a 100-continue.  Document or change?
+                        await self._read_message(delegate)
+            elif headers.get("Expect") == "100-continue" and not self._write_finished:
+                self.stream.write(b"HTTP/1.1 100 (Continue)\r\n\r\n")
             if not skip_body:
                 body_future = self._read_body(
                     resp_start_line.code if self.is_client else 0, headers, delegate
@@ -387,7 +387,7 @@ class HTTP1Connection(httputil.HTTPConnection):
         if self.is_client:
             assert isinstance(start_line, httputil.RequestStartLine)
             self._request_start_line = start_line
-            lines.append(utf8("%s %s HTTP/1.1" % (start_line[0], start_line[1])))
+            lines.append(utf8(f"{start_line[0]} {start_line[1]} HTTP/1.1"))
             # Client requests with a non-empty body must have either a
             # Content-Length or a Transfer-Encoding.
             self._chunking_output = (
@@ -449,12 +449,13 @@ class HTTP1Connection(httputil.HTTPConnection):
         # cases that let bytes slip through. Remove these native_str calls when those
         # are fixed.
         header_lines = (
-            native_str(n) + ": " + native_str(v) for n, v in headers.get_all()
+            f"{native_str(n)}: {native_str(v)}" for n, v in headers.get_all()
         )
+
         lines.extend(line.encode("latin1") for line in header_lines)
         for line in lines:
             if b"\n" in line:
-                raise ValueError("Newline in header: " + repr(line))
+                raise ValueError(f"Newline in header: {repr(line)}")
         future = None
         if self.stream.closed():
             future = self._write_future = Future()
@@ -515,10 +516,9 @@ class HTTP1Connection(httputil.HTTPConnection):
                 "Tried to write %d bytes less than Content-Length"
                 % self._expected_content_remaining
             )
-        if self._chunking_output:
-            if not self.stream.closed():
-                self._pending_write = self.stream.write(b"0\r\n\r\n")
-                self._pending_write.add_done_callback(self._on_write_complete)
+        if self._chunking_output and not self.stream.closed():
+            self._pending_write = self.stream.write(b"0\r\n\r\n")
+            self._pending_write.add_done_callback(self._on_write_complete)
         self._write_finished = True
         # If the app finished the request while we're still reading,
         # divert any remaining data away from the delegate and
@@ -622,9 +622,9 @@ class HTTP1Connection(httputil.HTTPConnection):
             except ValueError:
                 # Handles non-integer Content-Length value.
                 raise httputil.HTTPInputError(
-                    "Only integer Content-Length is allowed: %s"
-                    % headers["Content-Length"]
+                    f'Only integer Content-Length is allowed: {headers["Content-Length"]}'
                 )
+
 
             if cast(int, content_length) > self._max_body_size:
                 raise httputil.HTTPInputError("Content-Length too long")
@@ -632,22 +632,18 @@ class HTTP1Connection(httputil.HTTPConnection):
             content_length = None
 
         if code == 204:
-            # This response code is not allowed to have a non-empty body,
-            # and has an implicit length of zero instead of read-until-close.
-            # http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.3
             if "Transfer-Encoding" in headers or content_length not in (None, 0):
                 raise httputil.HTTPInputError(
                     "Response with code %d should not have body" % code
                 )
-            content_length = 0
+            else:
+                content_length = 0
 
         if content_length is not None:
             return self._read_fixed_body(content_length, delegate)
         if headers.get("Transfer-Encoding", "").lower() == "chunked":
             return self._read_chunked_body(delegate)
-        if self.is_client:
-            return self._read_body_until_close(delegate)
-        return None
+        return self._read_body_until_close(delegate) if self.is_client else None
 
     async def _read_fixed_body(
         self, content_length: int, delegate: httputil.HTTPMessageDelegate
@@ -750,8 +746,7 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
 
     def finish(self) -> None:
         if self._decompressor is not None:
-            tail = self._decompressor.flush()
-            if tail:
+            if tail := self._decompressor.flush():
                 # The tail should always be empty: decompress returned
                 # all that it can in data_received and the only
                 # purpose of the flush call is to detect errors such

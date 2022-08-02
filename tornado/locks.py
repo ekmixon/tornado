@@ -115,10 +115,10 @@ class Condition(_TimeoutGarbageCollector):
         self.io_loop = ioloop.IOLoop.current()
 
     def __repr__(self) -> str:
-        result = "<%s" % (self.__class__.__name__,)
+        result = f"<{self.__class__.__name__}"
         if self._waiters:
-            result += " waiters[%s]" % len(self._waiters)
-        return result + ">"
+            result += f" waiters[{len(self._waiters)}]"
+        return f"{result}>"
 
     def wait(
         self, timeout: Optional[Union[float, datetime.timedelta]] = None
@@ -204,10 +204,7 @@ class Event(object):
         self._waiters = set()  # type: Set[Future[None]]
 
     def __repr__(self) -> str:
-        return "<%s %s>" % (
-            self.__class__.__name__,
-            "set" if self.is_set() else "clear",
-        )
+        return f'<{self.__class__.__name__} {"set" if self.is_set() else "clear"}>'
 
     def is_set(self) -> bool:
         """Return ``True`` if the internal flag is true."""
@@ -248,15 +245,12 @@ class Event(object):
         fut.add_done_callback(lambda fut: self._waiters.remove(fut))
         if timeout is None:
             return fut
-        else:
-            timeout_fut = gen.with_timeout(timeout, fut)
+        timeout_fut = gen.with_timeout(timeout, fut)
             # This is a slightly clumsy workaround for the fact that
             # gen.with_timeout doesn't cancel its futures. Cancelling
             # fut will remove it from the waiters list.
-            timeout_fut.add_done_callback(
-                lambda tf: fut.cancel() if not fut.done() else None
-            )
-            return timeout_fut
+        timeout_fut.add_done_callback(lambda tf: None if fut.done() else fut.cancel())
+        return timeout_fut
 
 
 class _ReleasingContextManager(object):
@@ -524,7 +518,7 @@ class Lock(object):
         self._block = BoundedSemaphore(value=1)
 
     def __repr__(self) -> str:
-        return "<%s _block=%s>" % (self.__class__.__name__, self._block)
+        return f"<{self.__class__.__name__} _block={self._block}>"
 
     def acquire(
         self, timeout: Optional[Union[float, datetime.timedelta]] = None

@@ -379,8 +379,9 @@ class AsyncTestCase(unittest.TestCase):
                 def timeout_func() -> None:
                     try:
                         raise self.failureException(
-                            "Async operation timed out after %s seconds" % timeout
+                            f"Async operation timed out after {timeout} seconds"
                         )
+
                     except Exception:
                         self.__failure = sys.exc_info()
                     self.stop()
@@ -522,7 +523,7 @@ class AsyncHTTPTestCase(AsyncTestCase):
 
     def get_url(self, path: str) -> str:
         """Returns an absolute url for the given path on the test server."""
-        return "%s://127.0.0.1:%s%s" % (self.get_protocol(), self.get_http_port(), path)
+        return f"{self.get_protocol()}://127.0.0.1:{self.get_http_port()}{path}"
 
     def tearDown(self) -> None:
         self.http_server.stop()
@@ -677,15 +678,7 @@ def gen_test(  # noqa: F811
 
         return post_coroutine
 
-    if func is not None:
-        # Used like:
-        #     @gen_test
-        #     def f(self):
-        #         pass
-        return wrap(func)
-    else:
-        # Used like @gen_test(timeout=10)
-        return wrap
+    return wrap(func) if func is not None else wrap
 
 
 # Without this attribute, nosetests will try to run gen_test as a test

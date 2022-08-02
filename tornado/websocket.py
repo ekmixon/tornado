@@ -736,10 +736,7 @@ class _PerMessageDeflateCompressor(object):
         else:
             self._mem_level = compression_options["mem_level"]
 
-        if persistent:
-            self._compressor = self._create_compressor()  # type: Optional[_Compressor]
-        else:
-            self._compressor = None
+        self._compressor = self._create_compressor() if persistent else None
 
     def _create_compressor(self) -> "_Compressor":
         return zlib.compressobj(
@@ -771,12 +768,7 @@ class _PerMessageDeflateDecompressor(object):
                 zlib.MAX_WBITS,
             )
         self._max_wbits = max_wbits
-        if persistent:
-            self._decompressor = (
-                self._create_decompressor()
-            )  # type: Optional[_Decompressor]
-        else:
-            self._decompressor = None
+        self._decompressor = (self._create_decompressor()) if persistent else None
 
     def _create_decompressor(self) -> "_Decompressor":
         return zlib.decompressobj(-self._max_wbits)
@@ -899,8 +891,9 @@ class WebSocketProtocol13(WebSocketProtocol):
         )
 
     async def _accept_connection(self, handler: WebSocketHandler) -> None:
-        subprotocol_header = handler.request.headers.get("Sec-WebSocket-Protocol")
-        if subprotocol_header:
+        if subprotocol_header := handler.request.headers.get(
+            "Sec-WebSocket-Protocol"
+        ):
             subprotocols = [s.strip() for s in subprotocol_header.split(",")]
         else:
             subprotocols = []
@@ -952,8 +945,7 @@ class WebSocketProtocol13(WebSocketProtocol):
     def _parse_extensions_header(
         self, headers: httputil.HTTPHeaders
     ) -> List[Tuple[str, Dict[str, str]]]:
-        extensions = headers.get("Sec-WebSocket-Extensions", "")
-        if extensions:
+        if extensions := headers.get("Sec-WebSocket-Extensions", ""):
             return [httputil._parse_header(e.strip()) for e in extensions.split(",")]
         return []
 
@@ -988,9 +980,10 @@ class WebSocketProtocol13(WebSocketProtocol):
         for our compressor objects.
         """
         options = dict(
-            persistent=(side + "_no_context_takeover") not in agreed_parameters
-        )  # type: Dict[str, Any]
-        wbits_header = agreed_parameters.get(side + "_max_window_bits", None)
+            persistent=f"{side}_no_context_takeover" not in agreed_parameters
+        )
+
+        wbits_header = agreed_parameters.get(f"{side}_max_window_bits")
         if wbits_header is None:
             options["max_wbits"] = zlib.MAX_WBITS
         else:
@@ -1005,14 +998,13 @@ class WebSocketProtocol13(WebSocketProtocol):
         compression_options: Optional[Dict[str, Any]] = None,
     ) -> None:
         # TODO: handle invalid parameters gracefully
-        allowed_keys = set(
-            [
-                "server_no_context_takeover",
-                "client_no_context_takeover",
-                "server_max_window_bits",
-                "client_max_window_bits",
-            ]
-        )
+        allowed_keys = {
+            "server_no_context_takeover",
+            "client_no_context_takeover",
+            "server_max_window_bits",
+            "client_max_window_bits",
+        }
+
         for key in agreed_parameters:
             if key not in allowed_keys:
                 raise ValueError("unsupported compression parameter %r" % key)
@@ -1038,15 +1030,9 @@ class WebSocketProtocol13(WebSocketProtocol):
                 raise ValueError("control frames may not be fragmented")
             if data_len > 125:
                 raise ValueError("control frame payloads may not exceed 125 bytes")
-        if fin:
-            finbit = self.FIN
-        else:
-            finbit = 0
+        finbit = self.FIN if fin else 0
         frame = struct.pack("B", finbit | opcode | flags)
-        if self.mask_outgoing:
-            mask_bit = 0x80
-        else:
-            mask_bit = 0
+        mask_bit = 0x80 if self.mask_outgoing else 0
         if data_len < 126:
             frame += struct.pack("B", data_len | mask_bit)
         elif data_len <= 0xFFFF:
@@ -1064,10 +1050,7 @@ class WebSocketProtocol13(WebSocketProtocol):
         self, message: Union[str, bytes, Dict[str, Any]], binary: bool = False
     ) -> "Future[None]":
         """Sends the given message to the client of this Web Socket."""
-        if binary:
-            opcode = 0x2
-        else:
-            opcode = 0x1
+        opcode = 0x2 if binary else 0x1
         if isinstance(message, dict):
             message = tornado.escape.json_encode(message)
         message = tornado.escape.utf8(message)
@@ -1253,10 +1236,7 @@ class WebSocketProtocol13(WebSocketProtocol):
             if not self.stream.closed():
                 if code is None and reason is not None:
                     code = 1000  # "normal closure" status code
-                if code is None:
-                    close_data = b""
-                else:
-                    close_data = struct.pack(">H", code)
+                close_data = b"" if code is None else struct.pack(">H", code)
                 if reason is not None:
                     close_data += utf8(reason)
                 try:
@@ -1291,9 +1271,7 @@ class WebSocketProtocol13(WebSocketProtocol):
     @property
     def ping_interval(self) -> Optional[float]:
         interval = self.params.ping_interval
-        if interval is not None:
-            return interval
-        return 0
+        return interval if interval is not None else 0
 
     @property
     def ping_timeout(self) -> Optional[float]:
@@ -1525,11 +1503,10 @@ class WebSocketClientConnection(simple_httpclient._HTTPConnection):
     def _on_message(
         self, message: Union[None, str, bytes]
     ) -> Optional[Awaitable[None]]:
-        if self._on_message_callback:
-            self._on_message_callback(message)
-            return None
-        else:
+        if not self._on_message_callback:
             return self.read_queue.put(message)
+        self._on_message_callback(message)
+        return None
 
     def ping(self, data: bytes = b"") -> None:
         """Send ping frame to the remote end.

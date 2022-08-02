@@ -211,8 +211,7 @@ class TestReadWriteMixin(object):
 
         try:
             ws.write(b"12")
-            chunks = []
-            chunks.append((yield rs.read_bytes(1)))
+            chunks = [(yield rs.read_bytes(1))]
             ws.close()
             chunks.append((yield rs.read_bytes(1)))
             self.assertEqual(chunks, [b"1", b"2"])
@@ -281,7 +280,7 @@ class TestReadWriteMixin(object):
             ):
                 raise unittest.SkipTest("pypy gc causes problems with openssl")
             NUM_KB = 4096
-            for i in range(NUM_KB):
+            for _ in range(NUM_KB):
                 ws.write(b"A" * 1024)
             ws.write(b"\r\n")
             data = yield rs.read_until(b"\r\n")
@@ -549,7 +548,7 @@ class TestReadWriteMixin(object):
         rs, ws = yield self.make_iostream_pair(max_buffer_size=10 * 1024)
         try:
             ws.write(b"a" * 1024 * 100)
-            for i in range(100):
+            for _ in range(100):
                 data = yield rs.read_bytes(1024)
                 self.assertEqual(data, b"a" * 1024)
         finally:
@@ -564,7 +563,7 @@ class TestReadWriteMixin(object):
         rs, ws = yield self.make_iostream_pair(max_buffer_size=10 * 1024)
         try:
             ws.write((b"a" * 1023 + b"\n") * 100)
-            for i in range(100):
+            for _ in range(100):
                 data = yield rs.read_until(b"\n", max_bytes=4096)
                 self.assertEqual(data, b"a" * 1023 + b"\n")
         finally:
@@ -583,7 +582,7 @@ class TestReadWriteMixin(object):
             yield gen.sleep(0.1)
             # The ws's writes have been blocked; the rs can
             # continue to read gradually.
-            for i in range(9):
+            for _ in range(9):
                 yield rs.read_bytes(MB)
         finally:
             rs.close()
@@ -1258,10 +1257,10 @@ class TestStreamBuffer(unittest.TestCase):
 
         # Test internal algorithm
         buf = self.make_streambuffer(10)
-        for i in range(9):
+        for _ in range(9):
             buf.append(b"x")
         self.assertEqual(len(buf._buffers), 1)
-        for i in range(9):
+        for _ in range(9):
             buf.append(b"x")
         self.assertEqual(len(buf._buffers), 2)
         buf.advance(10)
@@ -1292,7 +1291,7 @@ class TestStreamBuffer(unittest.TestCase):
 
         # Test internal algorithm
         buf = self.make_streambuffer(10)
-        for i in range(3):
+        for _ in range(3):
             buf.append(b"x" * 11)
         self.assertEqual(len(buf._buffers), 3)
         buf.append(b"y")

@@ -92,10 +92,9 @@ class BaseRequestHandler(web.RequestHandler):
         assert isinstance(value, dict) and len(value) == 1
         self.set_header("Content-Type", "application/xml; charset=UTF-8")
         name = list(value.keys())[0]
-        parts = []
-        parts.append("<" + name + ' xmlns="http://doc.s3.amazonaws.com/2006-03-01">')
+        parts = [f"<{name}" + ' xmlns="http://doc.s3.amazonaws.com/2006-03-01">']
         self._render_parts(value[name], parts)
-        parts.append("</" + name + ">")
+        parts.append(f"</{name}>")
         self.finish('<?xml version="1.0" encoding="UTF-8"?>\n' + "".join(parts))
 
     def _render_parts(self, value, parts=[]):
@@ -110,9 +109,9 @@ class BaseRequestHandler(web.RequestHandler):
                 if not isinstance(subvalue, list):
                     subvalue = [subvalue]
                 for subsubvalue in subvalue:
-                    parts.append("<" + name + ">")
+                    parts.append(f"<{name}>")
                     self._render_parts(subsubvalue, parts)
-                    parts.append("</" + name + ">")
+                    parts.append(f"</{name}>")
         else:
             raise Exception("Unknown S3 value type %r", value)
 
@@ -155,8 +154,7 @@ class BucketHandler(BaseRequestHandler):
             raise web.HTTPError(404)
         object_names = []
         for root, dirs, files in os.walk(path):
-            for file_name in files:
-                object_names.append(os.path.join(root, file_name))
+            object_names.extend(os.path.join(root, file_name) for file_name in files)
         skip = len(path) + 1
         for i in range(self.application.bucket_depth):
             skip += 2 * (i + 1) + 1
@@ -181,14 +179,13 @@ class BucketHandler(BaseRequestHandler):
             c = {"Key": object_name}
             if not terse:
                 info = os.stat(object_path)
-                c.update(
-                    {
-                        "LastModified": datetime.datetime.utcfromtimestamp(
-                            info.st_mtime
-                        ),
-                        "Size": info.st_size,
-                    }
-                )
+                c |= {
+                    "LastModified": datetime.datetime.utcfromtimestamp(
+                        info.st_mtime
+                    ),
+                    "Size": info.st_size,
+                }
+
             contents.append(c)
             marker = object_name
         self.render_xml(

@@ -239,7 +239,7 @@ class ArgReplacerTest(unittest.TestCase):
 
     def test_omitted(self):
         args = (1, 2)
-        kwargs = dict()  # type: Dict[str, Any]
+        kwargs = {}
         self.assertIs(self.replacer.get_old_value(args, kwargs), None)
         self.assertEqual(
             self.replacer.replace("new", args, kwargs),
@@ -248,11 +248,11 @@ class ArgReplacerTest(unittest.TestCase):
 
     def test_position(self):
         args = (1, 2, "old", 3)
-        kwargs = dict()  # type: Dict[str, Any]
+        kwargs = {}
         self.assertEqual(self.replacer.get_old_value(args, kwargs), "old")
         self.assertEqual(
             self.replacer.replace("new", args, kwargs),
-            ("old", [1, 2, "new", 3], dict()),
+            ("old", [1, 2, "new", 3], {}),
         )
 
     def test_keyword(self):

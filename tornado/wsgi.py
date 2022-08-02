@@ -125,7 +125,7 @@ class WSGIContainer(object):
         status_code_str, reason = data["status"].split(" ", 1)
         status_code = int(status_code_str)
         headers = data["headers"]  # type: List[Tuple[str, str]]
-        header_set = set(k.lower() for (k, v) in headers)
+        header_set = {k.lower() for (k, v) in headers}
         body = escape.utf8(body)
         if status_code != 304:
             if "content-length" not in header_set:
@@ -133,7 +133,7 @@ class WSGIContainer(object):
             if "content-type" not in header_set:
                 headers.append(("Content-Type", "text/html; charset=UTF-8"))
         if "server" not in header_set:
-            headers.append(("Server", "TornadoServer/%s" % tornado.version))
+            headers.append(("Server", f"TornadoServer/{tornado.version}"))
 
         start_line = httputil.ResponseStartLine("HTTP/1.1", status_code, reason)
         header_obj = httputil.HTTPHeaders()

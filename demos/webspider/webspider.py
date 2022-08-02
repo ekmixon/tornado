@@ -20,7 +20,7 @@ async def get_links_from_url(url):
     'http://www.tornadoweb.org/en/stable/gen.html'.
     """
     response = await httpclient.AsyncHTTPClient().fetch(url)
-    print("fetched %s" % url)
+    print(f"fetched {url}")
 
     html = response.body.decode(errors="ignore")
     return [urljoin(url, remove_fragment(new_url)) for new_url in get_links(html)]
@@ -56,7 +56,7 @@ async def main():
         if current_url in fetching:
             return
 
-        print("fetching %s" % current_url)
+        print(f"fetching {current_url}")
         fetching.add(current_url)
         urls = await get_links_from_url(current_url)
         fetched.add(current_url)
@@ -73,7 +73,7 @@ async def main():
             try:
                 await fetch_url(url)
             except Exception as e:
-                print("Exception: %s %s" % (e, url))
+                print(f"Exception: {e} {url}")
                 dead.add(url)
             finally:
                 q.task_done()
@@ -85,7 +85,7 @@ async def main():
     await q.join(timeout=timedelta(seconds=300))
     assert fetching == (fetched | dead)
     print("Done in %d seconds, fetched %s URLs." % (time.time() - start, len(fetched)))
-    print("Unable to fetch %s URLS." % len(dead))
+    print(f"Unable to fetch {len(dead)} URLS.")
 
     # Signal all the workers to exit.
     for _ in range(concurrency):

@@ -188,7 +188,7 @@ class OptionParser(object):
 
         .. versionadded:: 3.1
         """
-        return set(opt.group_name for opt in self._options.values())
+        return {opt.group_name for opt in self._options.values()}
 
     def group_dict(self, group: str) -> Dict[str, Any]:
         """The names and values of options in a group.
@@ -207,18 +207,18 @@ class OptionParser(object):
 
         .. versionadded:: 3.1
         """
-        return dict(
-            (opt.name, opt.value())
+        return {
+            opt.name: opt.value()
             for name, opt in self._options.items()
             if not group or group == opt.group_name
-        )
+        }
 
     def as_dict(self) -> Dict[str, Any]:
         """The names and values of all options.
 
         .. versionadded:: 3.1
         """
-        return dict((opt.name, opt.value()) for name, opt in self._options.items())
+        return {opt.name: opt.value() for name, opt in self._options.items()}
 
     def define(
         self,
@@ -291,14 +291,8 @@ class OptionParser(object):
         if file_name == options_file:
             file_name = ""
         if type is None:
-            if not multiple and default is not None:
-                type = default.__class__
-            else:
-                type = str
-        if group:
-            group_name = group  # type: Optional[str]
-        else:
-            group_name = file_name
+            type = default.__class__ if not multiple and default is not None else str
+        group_name = group or file_name
         option = _Option(
             name,
             file_name=file_name,
@@ -419,13 +413,12 @@ class OptionParser(object):
             normalized = self._normalize_name(name)
             if normalized in self._options:
                 option = self._options[normalized]
-                if option.multiple:
-                    if not isinstance(config[name], (list, str)):
-                        raise Error(
-                            "Option %r is required to be a list of %s "
-                            "or a comma-separated string"
-                            % (option.name, option.type.__name__)
-                        )
+                if option.multiple and not isinstance(config[name], (list, str)):
+                    raise Error(
+                        "Option %r is required to be a list of %s "
+                        "or a comma-separated string"
+                        % (option.name, option.type.__name__)
+                    )
 
                 if type(config[name]) == str and option.type != str:
                     option.parse(config[name])
@@ -439,7 +432,7 @@ class OptionParser(object):
         """Prints all the command line options to stderr (or another file)."""
         if file is None:
             file = sys.stderr
-        print("Usage: %s [OPTIONS]" % sys.argv[0], file=file)
+        print(f"Usage: {sys.argv[0]} [OPTIONS]", file=file)
         print("\nOptions:\n", file=file)
         by_group = {}  # type: Dict[str, List[_Option]]
         for option in self._options.values():
@@ -453,10 +446,10 @@ class OptionParser(object):
                 # Always print names with dashes in a CLI context.
                 prefix = self._normalize_name(option.name)
                 if option.metavar:
-                    prefix += "=" + option.metavar
+                    prefix += f"={option.metavar}"
                 description = option.help or ""
                 if option.default is not None and option.default != "":
-                    description += " (default %s)" % option.default
+                    description += f" (default {option.default})"
                 lines = textwrap.wrap(description, 79 - 35)
                 if len(prefix) > 30 or len(lines) == 0:
                     lines.insert(0, "")
@@ -601,12 +594,11 @@ class _Option(object):
                         "Option %r is required to be a list of %s"
                         % (self.name, self.type.__name__)
                     )
-        else:
-            if value is not None and not isinstance(value, self.type):
-                raise Error(
-                    "Option %r is required to be a %s (%s given)"
-                    % (self.name, self.type.__name__, type(value))
-                )
+        elif value is not None and not isinstance(value, self.type):
+            raise Error(
+                "Option %r is required to be a %s (%s given)"
+                % (self.name, self.type.__name__, type(value))
+            )
         self._value = value
         if self.callback is not None:
             self.callback(self._value)

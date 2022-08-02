@@ -27,8 +27,7 @@ from tornado.testing import AsyncTestCase, gen_test
 
 class AsyncIOLoopTest(AsyncTestCase):
     def get_new_ioloop(self):
-        io_loop = AsyncIOLoop(make_current=False)
-        return io_loop
+        return AsyncIOLoop(make_current=False)
 
     def test_asyncio_callback(self):
         # Basic test that the asyncio loop is set up correctly.
@@ -124,7 +123,7 @@ class LeakTest(unittest.TestCase):
 
     def test_ioloop_close_leak(self):
         orig_count = len(IOLoop._ioloop_for_asyncio)
-        for i in range(10):
+        for _ in range(10):
             # Create and close an AsyncIOLoop using Tornado interfaces.
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
@@ -135,7 +134,7 @@ class LeakTest(unittest.TestCase):
 
     def test_asyncio_close_leak(self):
         orig_count = len(IOLoop._ioloop_for_asyncio)
-        for i in range(10):
+        for _ in range(10):
             # Create and close an AsyncIOMainLoop using asyncio interfaces.
             loop = asyncio.new_event_loop()
             loop.call_soon(IOLoop.current)
